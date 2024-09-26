@@ -1,3 +1,4 @@
+Запуск uvicorn hw1:app 
 # Python Backend
 
 - [Репозиторий с примерами](https://github.com/katunilya/hse-python-backend) -
