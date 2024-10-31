@@ -3,6 +3,9 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import NonNegativeInt, PositiveInt, PositiveFloat
 from lecture_2.hw.shop_api import store
+from pydantic.types import Json
+from typing import Optional, Dict, List
+from typing import Any
 from .contracts import (
     CartRequest,
     CartResponse,
@@ -10,25 +13,29 @@ from .contracts import (
     ItemInfo
 )
 router = APIRouter()
-
-
-@router.get("/cart/")
+@router.get(
+    "/cart"
+)
 async def get_cart_list(
     offset: Annotated[NonNegativeInt, Query()] = 0,
-    limit: Annotated[PositiveInt, Query()] = 10,
+    limit: Optional[int] = Query(10, gt=0),
     min_price: Annotated[PositiveFloat, Query()] = None,
     max_price: Annotated[PositiveFloat, Query()] = None,
     min_quantity: Annotated[NonNegativeInt, Query()] = None,
     max_quantity: Annotated[NonNegativeInt, Query()] = None
 ) -> list[CartResponse]:
-    return [
-        CartResponse.from_entity(e) for e in store.get_many_cart(offset,
+    try:
+        return [
+            CartResponse.from_entity(e) for e in store.get_many_cart(offset,
                                                             limit,
                                                             min_price,
                                                             max_price,
                                                             min_quantity,
                                                             max_quantity)
-    ]
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=str(e))
+
 
 @router.get("/item")
 async def get_item_list(
@@ -37,11 +44,13 @@ async def get_item_list(
     min_price: Annotated[PositiveFloat, Query()] = None,
     max_price: Annotated[PositiveFloat, Query()] = None,
 ) -> list[Item]:
-    return store.get_many_item(offset,
+    try:
+        return store.get_many_item(offset,
                                         limit,
                                         min_price,
                                         max_price)
-
+    except Exception as e:
+        raise HTTPException(status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=str(e))
 
 
 @router.get(
@@ -68,14 +77,16 @@ async def get_item_by_id(id: int) -> Item:
 
 
 @router.delete(
-    "/item/{id}",
-    responses={
-        HTTPStatus.OK: {
-            "description": "Successfully returned requested item",
-        },
-    },
+    "/item/{id}"
 )
 async def delete_item_by_id(id: int):
+    item = store.get_one_item(id)
+
+    if not item or item.deleted is True:
+        raise HTTPException(
+            HTTPStatus.NOT_FOUND,
+            f"Request resource /item/{id} was not found",
+        )
     store.delete_item(id)
 
 
@@ -162,14 +173,19 @@ async def put_item(id: int, body) -> Item:
     "/item/{id}",
     status_code=HTTPStatus.OK
 )
-async def patch_item(id: int, body) -> Item:
+async def patch_item(id: int, body: dict) -> Item:
     item = store.get_one_item(id)
-
-    if not item:
+    if item is None:
         raise HTTPException(
             HTTPStatus.NOT_FOUND,
             f"Request resource /item/{id} was not found",
         )
+    if item.deleted:
+        raise HTTPException(status_code=HTTPStatus.NOT_MODIFIED)
+    try:
+        result = store.patch_item(id, body)
+    except Exception as e:
+        raise HTTPException(status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=str(e))
 
-    store.patch_item(id, body)
-    return store.get_one_item(id)
+    return result
+

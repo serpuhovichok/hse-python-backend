@@ -5,12 +5,14 @@ from dataclasses import dataclass
 class ItemInfo:
     name: str
     price: float
+    deleted: bool
 
 @dataclass
 class Item:
     id: int
     name: str
     price: float
+    deleted: bool = False
 
 @dataclass
 class CartInfo:
